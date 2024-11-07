@@ -8,10 +8,13 @@ import org.hncdev.usom.dto.UsomResponse;
 import org.hncdev.usom.model.Intelligence;
 import org.hncdev.usom.repository.IntelligenceRepository;
 import org.hncdev.usom.service.IntelligenceService;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
@@ -20,50 +23,31 @@ public class IntelligenceServiceImpl implements IntelligenceService {
 
     private final IntelligenceRepository intelligenceRepository;
     private final UsomClient usomClient;
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     @Override
+    @Scheduled(cron = "0 0 8 1/1 * ? *")
     public void save() {
-        int currentPage = 0;
-        int totalPage = 10;
+        IntStream.rangeClosed(1, 10).parallel().forEach(currentPage -> {
+            try {
+                List<IntelligenceDto> intelligenceDtos = getIntelligenceDto(currentPage);
+                if (intelligenceDtos.isEmpty())
+                    return;
 
-        try {
-            while (currentPage < totalPage) {
-                int finalCurrentPage = currentPage;
-                Callable<List<Intelligence>> task = () -> convertIntelligenceList(getIntelligenceDto(finalCurrentPage));
-                ScheduledFuture<List<Intelligence>> future = scheduler.schedule(task, 2, TimeUnit.SECONDS);
+                List<Intelligence> intelligences = convertIntelligenceList(intelligenceDtos);
+                Set<Long> existingIDs = getIntelligenceIDs(intelligences);
 
-                List<Intelligence> intelligences;
-                try {
-                    intelligences = future.get();
-                } catch (InterruptedException | ExecutionException e) {
-                    throw new RuntimeException("Error fetching intelligence data", e);
-                }
-
-                if (intelligences.isEmpty()) {
-                    break;
-                }
-
-                List<Intelligence> newIntelligences = intelligences.stream()
-                        .filter(intelligence -> !isIntelligenceExist(intelligence))
-                        .toList();
+                List<Intelligence> newIntelligences = filterNewIntelligences(intelligences, existingIDs);
 
                 if (!newIntelligences.isEmpty()) {
                     intelligenceRepository.saveAll(newIntelligences);
-                    log.info("Saved page {}", currentPage);
-                } else {
-                    log.info("No new records to save on page {}", currentPage);
                 }
 
-                currentPage++;
-            }
-        } finally {
-            scheduler.shutdown();
-        }
-    }
+                log.info("Intelligence data saved successfully. Page: {}", currentPage);
 
-    private boolean isIntelligenceExist(Intelligence intelligence) {
-        return intelligenceRepository.findByIntelligenceID(intelligence.getIntelligenceID()).isPresent();
+            } catch (Exception e) {
+                log.error("An error occurred while saving intelligence data. Page: {}", currentPage, e);
+            }
+        });
     }
 
     private List<IntelligenceDto> getIntelligenceDto(int page) {
@@ -77,4 +61,19 @@ public class IntelligenceServiceImpl implements IntelligenceService {
                 .map(IntelligenceDto::convert)
                 .toList();
     }
+
+    private Set<Long> getIntelligenceIDs(List<Intelligence> intelligences) {
+        Set<Long> ids = intelligences.stream()
+                .map(Intelligence::getIntelligenceID)
+                .collect(Collectors.toSet());
+
+        return intelligenceRepository.findExistingIds(ids);
+    }
+
+    private List<Intelligence> filterNewIntelligences(List<Intelligence> intelligences, Set<Long> existingIDs) {
+        return intelligences.stream()
+                .filter(intelligence -> !existingIDs.contains(intelligence.getIntelligenceID()))
+                .toList();
+    }
+
 }
