@@ -13,8 +13,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
@@ -23,31 +23,51 @@ public class IntelligenceServiceImpl implements IntelligenceService {
 
     private final IntelligenceRepository intelligenceRepository;
     private final UsomClient usomClient;
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     @Override
-    @Scheduled(cron = "0 0 8 1/1 * ? *")
+    @Scheduled(cron = "0 0 8 1/1 * ?")
     public void save() {
-        IntStream.rangeClosed(1, 10).parallel().forEach(currentPage -> {
-            try {
-                List<IntelligenceDto> intelligenceDtos = getIntelligenceDto(currentPage);
-                if (intelligenceDtos.isEmpty())
-                    return;
+        int currentPage = 0;
+        int totalPage = 10;
+        try {
+            while (currentPage < totalPage) {
+                int finalCurrentPage = currentPage;
 
-                List<Intelligence> intelligences = convertIntelligenceList(intelligenceDtos);
-                Set<Long> existingIDs = getIntelligenceIDs(intelligences);
+                Callable<List<Intelligence>> task = () -> convertIntelligenceList(getIntelligenceDto(finalCurrentPage));
+                ScheduledFuture<List<Intelligence>> future = scheduler.schedule(task, 2, TimeUnit.SECONDS);
 
-                List<Intelligence> newIntelligences = filterNewIntelligences(intelligences, existingIDs);
+                List<Intelligence> intelligences;
+
+                try {
+                    intelligences = future.get();
+                } catch (InterruptedException | ExecutionException e) {
+                    throw new RuntimeException("Error fetching intelligence data", e);
+                }
+                if (intelligences.isEmpty()) {
+                    break;
+                }
+
+                List<Intelligence> newIntelligences = intelligences.stream()
+                        .filter(intelligence -> !isIntelligenceExist(intelligence))
+                        .toList();
 
                 if (!newIntelligences.isEmpty()) {
                     intelligenceRepository.saveAll(newIntelligences);
+                    log.info("Saved page {}", currentPage);
+                } else {
+                    log.info("No new records to save on page {}", currentPage);
                 }
 
-                log.info("Intelligence data saved successfully. Page: {}", currentPage);
-
-            } catch (Exception e) {
-                log.error("An error occurred while saving intelligence data. Page: {}", currentPage, e);
+                currentPage++;
             }
-        });
+        } finally {
+            scheduler.shutdown();
+        }
+    }
+
+    private boolean isIntelligenceExist(Intelligence intelligence) {
+        return intelligenceRepository.findByIntelligenceID(intelligence.getIntelligenceID()).isPresent();
     }
 
     private List<IntelligenceDto> getIntelligenceDto(int page) {
@@ -55,24 +75,9 @@ public class IntelligenceServiceImpl implements IntelligenceService {
         return usomResponse.models();
     }
 
-
     private List<Intelligence> convertIntelligenceList(List<IntelligenceDto> intelligenceDtos) {
         return intelligenceDtos.stream()
                 .map(IntelligenceDto::convert)
-                .toList();
-    }
-
-    private Set<Long> getIntelligenceIDs(List<Intelligence> intelligences) {
-        Set<Long> ids = intelligences.stream()
-                .map(Intelligence::getIntelligenceID)
-                .collect(Collectors.toSet());
-
-        return intelligenceRepository.findExistingIds(ids);
-    }
-
-    private List<Intelligence> filterNewIntelligences(List<Intelligence> intelligences, Set<Long> existingIDs) {
-        return intelligences.stream()
-                .filter(intelligence -> !existingIDs.contains(intelligence.getIntelligenceID()))
                 .toList();
     }
 
