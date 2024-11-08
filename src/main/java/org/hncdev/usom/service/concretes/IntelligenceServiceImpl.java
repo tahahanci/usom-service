@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hncdev.usom.client.UsomClient;
 import org.hncdev.usom.dto.IntelligenceDto;
+import org.hncdev.usom.dto.IntelligenceResponse;
 import org.hncdev.usom.dto.UsomResponse;
 import org.hncdev.usom.model.Intelligence;
 import org.hncdev.usom.repository.IntelligenceRepository;
@@ -66,9 +67,14 @@ public class IntelligenceServiceImpl implements IntelligenceService {
     }
 
     @Override
-    public Intelligence findIntelligence(Long intelligenceID) {
-        return intelligenceRepository.findByIntelligenceID(intelligenceID)
+    public IntelligenceResponse findIntelligence(Long intelligenceID) {
+        if (intelligenceID == null) {
+            throw new IllegalArgumentException("Intelligence ID cannot be null");
+        }
+
+        Intelligence intelligence = intelligenceRepository.findByIntelligenceID(intelligenceID)
                 .orElseThrow(EntityNotFoundException::new);
+        return IntelligenceResponse.convert(intelligence);
     }
 
     private boolean isIntelligenceExist(Intelligence intelligence) {

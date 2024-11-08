@@ -1,7 +1,7 @@
 package org.hncdev.usom.controller;
 
 import lombok.RequiredArgsConstructor;
-import org.hncdev.usom.model.Intelligence;
+import org.hncdev.usom.dto.IntelligenceResponse;
 import org.hncdev.usom.service.IntelligenceService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,7 +23,7 @@ public class IntelligenceController {
     }
 
     @GetMapping("/get/{intelligenceID}")
-    public ResponseEntity<Intelligence> getUsomIntelligences(@PathVariable Long intelligenceID) {
+    public ResponseEntity<IntelligenceResponse> getUsomIntelligences(@PathVariable Long intelligenceID) {
         return ResponseEntity.ok(intelligenceService.findIntelligence(intelligenceID));
     }
 }

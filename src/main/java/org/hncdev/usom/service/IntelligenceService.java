@@ -1,10 +1,10 @@
 package org.hncdev.usom.service;
 
-import org.hncdev.usom.model.Intelligence;
+import org.hncdev.usom.dto.IntelligenceResponse;
 
 public interface IntelligenceService {
 
     void save();
 
-    Intelligence findIntelligence(Long intelligenceID);
+    IntelligenceResponse findIntelligence(Long intelligenceID);
 }

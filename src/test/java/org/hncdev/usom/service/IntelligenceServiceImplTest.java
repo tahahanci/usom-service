@@ -1,15 +1,18 @@
 package org.hncdev.usom.service;
 
 import jakarta.persistence.EntityNotFoundException;
+import org.hncdev.usom.dto.IntelligenceResponse;
 import org.hncdev.usom.model.Intelligence;
 import org.hncdev.usom.repository.IntelligenceRepository;
 import org.hncdev.usom.service.concretes.IntelligenceServiceImpl;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,30 +28,65 @@ public class IntelligenceServiceImplTest {
     @InjectMocks
     private IntelligenceServiceImpl intelligenceService;
 
-    @Test
-    void itShouldReturnIntelligenceIfIntelligenceExistsInDB() {
-        Long intelligenceID = 12345L;
+    private Intelligence testIntelligence;
+    private IntelligenceResponse expectedResponse;
 
-        Intelligence expectedIntelligence = new Intelligence();
-        expectedIntelligence.setIntelligenceID(intelligenceID);
+    @BeforeEach
+    void setUp() {
+        testIntelligence = Intelligence.builder()
+                .intelligenceID(1L)
+                .intelligenceUrl("test-url")
+                .intelligenceType("test")
+                .intelligenceDate(LocalDateTime.of(2021, 1, 1, 1, 1, 1))
+                .build();
 
-        when(intelligenceRepository.findByIntelligenceID(intelligenceID)).thenReturn(Optional.of(expectedIntelligence));
-
-        Intelligence resultIntelligence = intelligenceService.findIntelligence(intelligenceID);
-
-        assertThat(resultIntelligence).isNotNull();
-        assertThat(resultIntelligence.getIntelligenceID()).isEqualTo(expectedIntelligence.getIntelligenceID());
-        verify(intelligenceRepository, times(1)).findByIntelligenceID(intelligenceID);
+        expectedResponse = IntelligenceResponse.builder()
+                .intelligenceID(1L)
+                .intelligenceUrl("test-url")
+                .intelligenceType("test")
+                .intelligenceDate(LocalDateTime.of(2021, 1, 1, 1, 1, 1))
+                .build();
     }
 
     @Test
-    void itShouldThrowExceptionIfIntelligenceNotExist() {
-        Long intelligenceID = 12345L;
-        when(intelligenceRepository.findByIntelligenceID(intelligenceID)).thenReturn(Optional.empty());
+    void shouldFindIntelligenceWhenIntelligenceIDExists() {
+        Long intelligenceID = 1L;
+
+        when(intelligenceRepository.findByIntelligenceID(intelligenceID))
+                .thenReturn(Optional.of(testIntelligence));
+
+        IntelligenceResponse actualResponse = intelligenceService.findIntelligence(intelligenceID);
+
+        assertThat(actualResponse)
+                .isNotNull()
+                .usingRecursiveComparison()
+                .isEqualTo(expectedResponse);
+
+        verify(intelligenceRepository, times(1))
+                .findByIntelligenceID(intelligenceID);
+    }
+
+    @Test
+    void shouldThrowExceptionWhenIntelligenceNotFound() {
+        Long intelligenceID = 100L;
+
+        when(intelligenceRepository.findByIntelligenceID(intelligenceID))
+                .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> intelligenceService.findIntelligence(intelligenceID))
                 .isInstanceOf(EntityNotFoundException.class);
-        verify(intelligenceRepository, times(1)).findByIntelligenceID(intelligenceID);
+
+        verify(intelligenceRepository, times(1))
+                .findByIntelligenceID(intelligenceID);
+    }
+
+    @Test
+    void shouldThrowExceptionIfIntelligenceIDIsNull() {
+        assertThatThrownBy(() -> intelligenceService.findIntelligence(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Intelligence ID cannot be null");
+
+        verify(intelligenceRepository, never()).findByIntelligenceID(any());
     }
 
 }
