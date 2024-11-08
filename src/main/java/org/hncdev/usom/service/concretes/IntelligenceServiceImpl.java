@@ -1,5 +1,6 @@
 package org.hncdev.usom.service.concretes;
 
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hncdev.usom.client.UsomClient;
@@ -12,9 +13,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.*;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -64,6 +63,12 @@ public class IntelligenceServiceImpl implements IntelligenceService {
         } finally {
             scheduler.shutdown();
         }
+    }
+
+    @Override
+    public Intelligence findIntelligence(Long intelligenceID) {
+        return intelligenceRepository.findByIntelligenceID(intelligenceID)
+                .orElseThrow(EntityNotFoundException::new);
     }
 
     private boolean isIntelligenceExist(Intelligence intelligence) {
